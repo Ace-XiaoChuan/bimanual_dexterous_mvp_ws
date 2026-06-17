@@ -1,0 +1,14 @@
+# Name of the task to start
+string task_name
+---
+# Whether the start request was accepted
+bool accepted
+
+# Identifier generated for this task execution
+string task_id
+
+# Zero means no error
+int32 error_code
+
+# Human-readable result description
+string message

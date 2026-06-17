@@ -1,0 +1,29 @@
+# Goal
+
+# Arm namespace or logical name, for example left_arm or right_arm
+string arm_name
+
+# Named motion target, for example home, pregrasp or grasp
+string target_name
+
+# Maximum allowed execution time in seconds
+float32 timeout_sec
+---
+# Result
+
+# Whether the motion completed successfully
+bool success
+
+# Zero means no error
+int32 error_code
+
+# Human-readable result description
+string message
+---
+# Feedback
+
+# Current internal execution state
+string current_state
+
+# Progress range: 0.0 to 1.0
+float32 progress
