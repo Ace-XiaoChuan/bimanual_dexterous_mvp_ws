@@ -1,0 +1,9 @@
+ROS_DISTRO=humble
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:    Ubuntu 22.04.5 LTS
+Release:        22.04
+Codename:       jammy
+Python 3.10.12
+ros2 OK
+colcon OK
