@@ -1,0 +1,1 @@
+"""Fake scene manager package."""

@@ -3,7 +3,7 @@
 <package format="3">
   <name>fake_scene_manager</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Fake scene manager services for the MVP-0 assembly demo</description>
   <maintainer email="3526623168@qq.com">ace</maintainer>
   <license>Apache-2.0</license>
 

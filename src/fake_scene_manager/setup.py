@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='ace',
     maintainer_email='3526623168@qq.com',
-    description='TODO: Package description',
+    description='Fake scene manager services for the MVP-0 assembly demo',
     license='Apache-2.0',
     extras_require={
         'test': [
@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'fake_scene_manager_node = '
+            'fake_scene_manager.fake_scene_manager_node:main',
         ],
     },
 )
