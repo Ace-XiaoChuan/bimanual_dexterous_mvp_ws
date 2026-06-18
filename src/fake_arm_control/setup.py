@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'fake_arm_control_node = '
+            'fake_arm_control.fake_arm_control_node:main',
         ],
     },
 )
