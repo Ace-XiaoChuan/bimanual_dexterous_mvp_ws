@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'assembly_task_node = assembly_task.assembly_task_node:main',
         ],
     },
 )

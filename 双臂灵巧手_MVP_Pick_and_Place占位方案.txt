@@ -1,0 +1,832 @@
+"""
+双臂灵巧手协同装配 MVP 方案
+——以 Pick-and-Place 作为 Peg-in-Hole 占位任务
+
+文档版本：v0.1
+适用阶段：项目启动、系统骨架搭建、仿真与接口联调
+核心原则：先跑通完整链路，再逐步增加接触、精度与协同复杂度
+
+
+一、结论
+
+在双臂灵巧手协同装配项目的最初阶段，将 Peg-in-Hole 暂时替换为 Pick-and-Place 是可行且推荐的。
+
+Pick-and-Place 可以作为 Peg-in-Hole 的任务占位符，用来优先验证以下内容：
+
+1. 双机械臂与双灵巧手的模型是否正确；
+2. ROS 2、MoveIt、MTC、ros2_control 和 MuJoCo 是否能够联通；
+3. 灵巧手预设抓型能否被稳定调用；
+4. 左右机械臂的命名空间、控制器和状态是否相互独立；
+5. 双臂任务是否能够按照规定顺序执行；
+6. 物体能否完成生成、抓取、附着、搬运、释放和重置；
+7. 系统是否具有统一的动作接口、错误处理和日志记录；
+8. 后续是否可以在不推翻上层架构的情况下加入 Peg-in-Hole。
+
+但是必须明确：
+
+Pick-and-Place 只能验证系统骨架，不能验证真正的精密装配能力。它不能替代对接触建模、柔顺控制、力反馈、孔轴对准、插入搜索、卡阻检测和失败恢复的研究。
+
+因此，Pick-and-Place 应被定义为“MVP 占位任务”，而不是最终装配成果。
+
+
+二、为什么先做 Pick-and-Place
+
+当前完整问题同时包含：
+
+1. 双机械臂协同；
+2. 双灵巧手控制；
+3. 多指抓取；
+4. MuJoCo 接触仿真；
+5. MoveIt 和 MTC 任务规划；
+6. 多控制器同步；
+7. 装配接触与力控制；
+8. 仿真到真实系统迁移。
+
+如果一开始直接做 Peg-in-Hole，出现失败时很难判断原因来自：
+
+1. 机械臂运动规划；
+2. 灵巧手抓型；
+3. 物体没有抓稳；
+4. TF 坐标系错误；
+5. MuJoCo 摩擦或接触参数错误；
+6. 孔轴位姿不准确；
+7. 插入轨迹不合理；
+8. 控制器切换错误；
+9. 双臂发生碰撞；
+10. 状态机顺序错误。
+
+使用 Pick-and-Place 后，可以暂时避开精密接触过程，将问题压缩为：
+
+“机械臂到达目标位置，灵巧手执行固定抓型，物体被搬运到指定区域并释放。”
+
+这使每个模块都能被单独测试，显著降低调试难度。
+
+
+三、MVP 的目标定义
+
+MVP 的目标不是展示智能装配，而是搭建一个：
+
+1. 能运行；
+2. 能重置；
+3. 能重复；
+4. 能记录；
+5. 能替换模块；
+6. 能从单臂扩展到双臂；
+7. 能从 Pick-and-Place 升级到 Peg-in-Hole
+
+的基础系统。
+
+建议将 MVP 成功标准定义为：
+
+在已知场景、固定物体位姿、固定抓取位姿和固定抓型条件下，系统能够控制机械臂和灵巧手完成一次可重复的抓取、搬运、放置与复位流程。
+
+
+四、MVP 中明确不做的内容
+
+第一阶段暂不实现：
+
+1. 任意物体抓取；
+2. 自动抓取姿态生成；
+3. 视觉定位；
+4. 触觉闭环；
+5. 滑移检测；
+6. 掌内操作；
+7. 在线重抓取；
+8. 双臂闭链规划；
+9. 高精度双臂同步；
+10. 力控制；
+11. 阻抗控制；
+12. 插入搜索；
+13. 卡阻检测；
+14. 自动失败恢复；
+15. 强化学习；
+16. 端到端策略；
+17. 复杂装配零件。
+
+MVP 中的对应简化方式：
+
+1. 物体位姿写入 YAML；
+2. 抓取位姿人工设定；
+3. 灵巧手使用固定预设手型；
+4. 抓取后采用逻辑附着；
+5. 放置后直接解除附着；
+6. 机械臂使用固定目标点或简单规划；
+7. 任务失败后停止，不自动恢复。
+
+
+五、建议的 MVP 任务
+
+第一版任务：
+
+1. 初始化场景；
+2. 机械臂回到 Home；
+3. 灵巧手张开；
+4. 机械臂移动到预抓取位姿；
+5. 灵巧手执行预成形；
+6. 机械臂移动到抓取位姿；
+7. 灵巧手闭合；
+8. 将物体逻辑附着到手掌；
+9. 机械臂抬升物体；
+10. 机械臂移动到预放置位姿；
+11. 机械臂移动到放置位姿；
+12. 解除物体附着；
+13. 灵巧手张开；
+14. 机械臂撤离；
+15. 机械臂返回 Home；
+16. 任务结束。
+
+状态机可表示为：
+
+IDLE
+→ RESET
+→ ARM_HOME
+→ HAND_OPEN
+→ ARM_PREGRASP
+→ HAND_PRESHAPE
+→ ARM_GRASP
+→ HAND_CLOSE
+→ ATTACH_OBJECT
+→ ARM_LIFT
+→ ARM_PREPLACE
+→ ARM_PLACE
+→ DETACH_OBJECT
+→ HAND_OPEN
+→ ARM_RETREAT
+→ ARM_HOME
+→ SUCCESS
+
+任何关键动作失败：
+
+当前状态
+→ FAILED
+→ STOP
+
+
+六、Pick-and-Place 如何作为 Peg-in-Hole 占位符
+
+为了后续升级时不推翻架构，应将任务分成三个通用阶段：
+
+阶段 A：获取物体
+
+1. 接近物体；
+2. 灵巧手预成形；
+3. 抓取；
+4. 验证或逻辑确认抓取成功；
+5. 抬升。
+
+阶段 B：运输物体
+
+1. 搬运；
+2. 避障；
+3. 到达操作区域；
+4. 到达预操作位姿。
+
+阶段 C：执行末端任务
+
+Pick-and-Place 版本：
+
+1. 移动到预放置位姿；
+2. 移动到放置位姿；
+3. 释放物体；
+4. 撤离。
+
+Peg-in-Hole 版本：
+
+1. 移动到预插入位姿；
+2. 粗对准；
+3. 切换低速笛卡尔运动或柔顺控制；
+4. 搜索孔位；
+5. 执行插入；
+6. 检查插入结果；
+7. 释放或保持；
+8. 撤离。
+
+因此，上层任务接口应使用通用名称，例如：
+
+execute_acquire_phase()
+execute_transport_phase()
+execute_terminal_operation()
+
+不要在系统核心代码中直接将第三阶段命名为 place_only。
+
+更推荐定义任务类型：
+
+terminal_operation: PLACE
+
+后续修改为：
+
+terminal_operation: INSERT
+
+这样可以通过配置文件切换。
+
+
+七、建议的软件模块
+
+1. assembly_task
+
+职责：
+
+1. 维护任务状态机；
+2. 调用机械臂、灵巧手和场景服务；
+3. 管理动作顺序；
+4. 设置动作超时；
+5. 记录成功与失败状态。
+
+2. arm_motion
+
+职责：
+
+1. move_to_named_target；
+2. move_to_pose_target；
+3. execute_cartesian_path；
+4. stop；
+5. 返回规划和执行结果。
+
+3. hand_control
+
+职责：
+
+1. open；
+2. preshape；
+3. close；
+4. hold；
+5. release；
+6. 将低维命令映射为全部手指关节目标。
+
+4. scene_manager
+
+职责：
+
+1. reset_scene；
+2. spawn_object；
+3. get_object_pose；
+4. attach_object；
+5. detach_object；
+6. 管理桌面和障碍物。
+
+5. terminal_operation
+
+职责：
+
+1. 封装任务最后阶段；
+2. MVP 中实现 PlaceOperation；
+3. 后续实现 InsertOperation；
+4. 对上层暴露统一接口。
+
+
+八、推荐的统一接口
+
+机械臂接口：
+
+move_to_named_target(arm_name, target_name)
+move_to_pose_target(arm_name, target_pose)
+execute_cartesian_path(arm_name, waypoints)
+stop_arm(arm_name)
+
+灵巧手接口：
+
+open(hand_name)
+preshape(hand_name, grasp_type)
+close(hand_name, grasp_type, closure)
+hold(hand_name)
+release(hand_name)
+
+场景接口：
+
+reset_scene()
+attach_object(object_name, link_name)
+detach_object(object_name)
+get_object_pose(object_name)
+
+末端任务接口：
+
+execute_terminal_operation(operation_type, parameters)
+
+其中：
+
+operation_type = PLACE
+
+后续升级为：
+
+operation_type = INSERT
+
+
+九、建议的配置文件结构
+
+task.yaml：
+
+task_name: pick_and_place_mvp
+
+active_arm: right
+
+object:
+  name: peg_placeholder
+  frame: world
+
+grasp:
+  type: cylindrical_grasp
+  logical_attach: true
+
+terminal_operation:
+  type: PLACE
+  target_frame: assembly_frame
+
+timeouts:
+  arm_motion: 20.0
+  hand_motion: 5.0
+  attach: 2.0
+  terminal_operation: 20.0
+
+targets.yaml：
+
+right_arm:
+  home:
+    joints: []
+
+  pregrasp:
+    joints: []
+
+  grasp:
+    joints: []
+
+  lift:
+    joints: []
+
+  preplace:
+    joints: []
+
+  place:
+    joints: []
+
+  retreat:
+    joints: []
+
+grasp_library.yaml：
+
+cylindrical_grasp:
+  preshape:
+    joint_1: 0.0
+    joint_2: 0.0
+
+  closed:
+    joint_1: 0.8
+    joint_2: 1.0
+
+  default_closure: 0.75
+
+
+十、灵巧手在 MVP 中的处理方式
+
+灵巧手暂时被降维为“多关节预设抓型执行器”。
+
+任务层不直接控制每个手指关节，而只发送：
+
+1. OPEN；
+2. PRESHAPE；
+3. CLOSE；
+4. HOLD；
+5. RELEASE。
+
+抓型由 YAML 文件定义。
+
+第一版抓取成功条件：
+
+1. 手部闭合命令执行完成；
+2. 物体逻辑附着成功。
+
+第一版不要求：
+
+1. 指尖真正形成稳定力闭合；
+2. 触觉检测全部接触；
+3. 物体完全依靠摩擦保持；
+4. 在线调整抓持力。
+
+这样做的目的是先验证手部控制接口和任务链路。
+
+后续可逐步将逻辑附着替换为真实物理抓取，而不改变上层任务接口。
+
+
+十一、单臂 MVP
+
+建议先完成：
+
+固定场景
+＋单个 Franka
+＋单只灵巧手
+＋单个物体
+＋固定抓型
+＋逻辑附着
+＋Pick-and-Place
+
+验收条件：
+
+1. 一条命令启动系统；
+2. 一条命令重置系统；
+3. 任务可完整执行；
+4. 物体能够随手掌移动；
+5. 放置后物体不再附着；
+6. 任务结束后机械臂返回 Home；
+7. 关键动作均有超时；
+8. 连续执行 10 次不发生节点崩溃；
+9. 每次任务都有状态日志；
+10. 失败后能够停止。
+
+
+十二、双臂 MVP
+
+在单臂版本稳定后，再加入第二只机械臂和第二只灵巧手。
+
+第一版双臂任务不要求同时运动。
+
+推荐流程：
+
+1. 左臂抓取物体 A；
+2. 左臂将物体 A 放到指定区域，或保持在固定位置；
+3. 左臂进入等待状态；
+4. 右臂抓取物体 B；
+5. 右臂将物体 B 放到物体 A 附近的指定区域；
+6. 右臂释放；
+7. 左臂释放或撤离；
+8. 两臂返回 Home。
+
+更简单的版本：
+
+1. 左臂仅移动到固定观察或等待位置；
+2. 右臂完成完整 Pick-and-Place；
+3. 系统验证左右控制器、命名空间和碰撞模型能够同时工作。
+
+第一版只需通过少量事件同步：
+
+LEFT_READY
+RIGHT_READY
+LEFT_TASK_FINISHED
+RIGHT_TASK_FINISHED
+TASK_SUCCESS
+
+
+十三、为什么 Pick-and-Place 仍然有价值
+
+尽管它不是精密装配，但它可以验证：
+
+1. 机器人描述文件；
+2. 双臂 TF 树；
+3. 灵巧手关节与控制方向；
+4. MoveIt 规划组；
+5. MTC 任务流程；
+6. ros2_control 控制器；
+7. MuJoCo 模型；
+8. 任务状态机；
+9. 左右命名空间；
+10. 物体附着与释放；
+11. 动作超时；
+12. 日志和实验管理；
+13. 一键启动与重置；
+14. 仿真和真机接口的一致性。
+
+这些内容都是后续 Peg-in-Hole 必须依赖的基础。
+
+
+十四、Pick-and-Place 不能验证的内容
+
+必须避免将 Pick-and-Place 的成功误认为装配问题已经解决。
+
+它不能验证：
+
+1. 毫米级或更高精度的对准能力；
+2. 插入接触过程；
+3. 腕部力和力矩控制；
+4. 指尖抓持力与装配力之间的协调；
+5. 孔轴卡阻；
+6. 搜索策略；
+7. 柔顺控制；
+8. 位姿误差容忍能力；
+9. 摩擦变化下的装配成功率；
+10. 双臂内力调节；
+11. 接触状态识别；
+12. 装配失败恢复。
+
+因此，项目汇报时应准确表述为：
+
+“已完成双臂灵巧手协同操作系统 MVP，当前使用 Pick-and-Place 作为末端装配阶段的占位任务。”
+
+不应表述为：
+
+“已经完成双臂灵巧手装配系统。”
+
+
+十五、推荐的阶段划分
+
+MVP-0：纯软件接口
+
+内容：
+
+1. ROS 2 package 可以编译；
+2. 状态机可以运行；
+3. 所有服务和 Action 使用假节点返回成功；
+4. 完整流程可以从开始执行到结束。
+
+MVP-1：RViz 单臂 Pick-and-Place
+
+内容：
+
+1. 单 Franka；
+2. 虚拟灵巧手；
+3. 固定目标点；
+4. 逻辑附着；
+5. 完成抓取和放置动画。
+
+MVP-2：MuJoCo 单臂 Pick-and-Place
+
+内容：
+
+1. 单 Franka 和灵巧手进入 MuJoCo；
+2. 关节控制正常；
+3. 物体可生成和重置；
+4. 完成逻辑抓取和放置。
+
+MVP-3：双臂双手 Pick-and-Place
+
+内容：
+
+1. 两套机器人模型；
+2. 左右独立控制；
+3. 简单任务同步；
+4. 无明显自碰撞；
+5. 双臂依次完成操作。
+
+MVP-4：Pick-and-Place 升级为预插入占位任务
+
+内容：
+
+1. 将放置目标设在孔口上方；
+2. 物体保持特定姿态；
+3. 到达预插入位姿；
+4. 暂不执行真实插入；
+5. 验证装配坐标系和接近方向。
+
+MVP-5：加入简单 Peg-in-Hole
+
+内容：
+
+1. 大间隙；
+2. 大倒角；
+3. 固定位姿；
+4. 低速直线插入；
+5. 不使用复杂搜索；
+6. 暂不使用学习方法。
+
+
+十六、从 Pick-and-Place 升级到 Peg-in-Hole 时的最小改动
+
+保持不变：
+
+1. 机械臂控制接口；
+2. 灵巧手控制接口；
+3. 场景管理接口；
+4. 任务状态机框架；
+5. 抓取阶段；
+6. 搬运阶段；
+7. 日志系统；
+8. 配置系统；
+9. 仿真与真机切换方式；
+10. 左右命名空间。
+
+需要替换：
+
+PlaceOperation
+
+替换为：
+
+InsertOperation
+
+InsertOperation 内部逐步加入：
+
+1. preinsert；
+2. approach；
+3. contact_detect；
+4. search；
+5. insert；
+6. verify；
+7. retreat。
+
+第一版 InsertOperation 可以只包含：
+
+1. 移动到 preinsert；
+2. 沿装配轴低速移动固定距离；
+3. 到达目标后返回成功。
+
+后续再加入力阈值、柔顺控制和失败恢复。
+
+
+十七、建议的开发顺序
+
+第 1 步：建立接口和假节点
+
+完成：
+
+1. MoveArm Action；
+2. HandCommand Action；
+3. AttachObject Service；
+4. TerminalOperation Action；
+5. AssemblyExecutor 状态机。
+
+第 2 步：接入 MoveIt 或 MTC
+
+完成：
+
+1. Home；
+2. Pregrasp；
+3. Grasp；
+4. Lift；
+5. Preplace；
+6. Place；
+7. Retreat。
+
+第 3 步：接入虚拟灵巧手
+
+完成：
+
+1. Open；
+2. Preshape；
+3. Close；
+4. Hold；
+5. Release。
+
+第 4 步：接入场景管理
+
+完成：
+
+1. Spawn；
+2. Reset；
+3. Attach；
+4. Detach。
+
+第 5 步：接入 MuJoCo
+
+要求：
+
+1. 上层接口保持不变；
+2. 只替换底层执行环境。
+
+第 6 步：加入第二只机械臂和灵巧手
+
+要求：
+
+1. 左右命名空间分离；
+2. 控制器分离；
+3. 状态分离；
+4. 增加简单同步事件。
+
+第 7 步：将 PlaceOperation 替换为 InsertOperation
+
+
+十八、四周实施建议
+
+第 1 周：
+
+1. 建立仓库；
+2. 定义 ROS 2 接口；
+3. 完成状态机；
+4. 实现假节点；
+5. 完成一键启动与重置；
+6. 输出完整状态日志。
+
+第 2 周：
+
+1. 接入单个 Franka MoveIt；
+2. 配置固定目标点；
+3. 接入灵巧手固定抓型；
+4. 完成 RViz 中的 Pick-and-Place；
+5. 完成逻辑附着与释放。
+
+第 3 周：
+
+1. 接入 MuJoCo；
+2. 测试机械臂和手部关节控制；
+3. 加入桌面和物体；
+4. 完成 MuJoCo Pick-and-Place；
+5. 连续运行 10 次。
+
+第 4 周：
+
+1. 加入第二机械臂和第二只手；
+2. 完成左右命名空间；
+3. 完成简单双臂任务；
+4. 加入碰撞检查；
+5. 将放置目标逐步调整到预插入位姿。
+
+
+十九、MVP 验收标准
+
+系统层：
+
+1. 所有模块可以独立启动；
+2. 一条命令可以启动完整系统；
+3. 一条命令可以重置场景；
+4. 任务层不直接访问 MuJoCo API；
+5. 任务层不直接控制每个手指关节；
+6. 仿真和真机使用统一上层接口；
+7. 所有动作都有超时；
+8. 所有失败都有明确返回值；
+9. 失败后机器人停止；
+10. 可记录每个状态的开始时间、结束时间和结果。
+
+任务层：
+
+1. 完成抓取；
+2. 完成抬升；
+3. 完成搬运；
+4. 完成放置；
+5. 完成释放；
+6. 完成撤离；
+7. 完成复位；
+8. 连续执行 10 次。
+
+扩展性：
+
+1. PlaceOperation 可独立替换；
+2. 插入阶段可以在不修改抓取和搬运模块的情况下加入；
+3. 灵巧手控制器后续可从位置控制替换为触觉或力闭环；
+4. 逻辑附着后续可替换为真实物理抓取；
+5. 单臂任务可以扩展为双臂任务。
+
+
+二十、主要风险与规避方式
+
+风险 1：Pick-and-Place 做得过于复杂
+
+规避：
+
+1. 不做视觉；
+2. 不做抓取规划；
+3. 不做触觉；
+4. 不做在线重规划；
+5. 不做掌内操作。
+
+风险 2：系统架构只适用于 Place
+
+规避：
+
+1. 使用 TerminalOperation 抽象；
+2. 将 PLACE 和 INSERT 作为不同任务类型；
+3. 不在上层状态机中硬编码具体插入逻辑。
+
+风险 3：逻辑附着掩盖真实抓取问题
+
+规避：
+
+1. 在文档和汇报中明确说明；
+2. 将物理抓取列为后续独立里程碑；
+3. 记录逻辑附着与真实抓取两种运行模式。
+
+风险 4：双臂过早加入导致调试困难
+
+规避：
+
+1. 先做单臂；
+2. 再复制左右系统；
+3. 最后增加同步；
+4. 初期不做联合空间规划。
+
+风险 5：MVP 完成后长期停留在 Pick-and-Place
+
+规避：
+
+提前规定升级门槛：
+
+连续 10 次 Pick-and-Place 成功
+＋系统可一键重置
+＋模块接口稳定
+＋日志完整
+
+达到上述条件后，立即进入预插入和简单 Peg-in-Hole 阶段，不再继续美化 Pick-and-Place。
+
+
+二十一、最终建议
+
+使用 Pick-and-Place 作为 Peg-in-Hole 的占位符是合理的，但必须满足三个条件：
+
+第一，Pick-and-Place 的定位是系统联调任务，而不是最终研究任务。
+
+第二，从一开始就将任务末端阶段抽象为可替换的 TerminalOperation，避免把 Place 逻辑写死在系统中。
+
+第三，为 Pick-and-Place 设置明确的停止条件。达到稳定运行和重复执行要求后，应立即开始将放置目标改为预插入目标，并逐步引入简单直线插入。
+
+推荐的总体演进路线为：
+
+纯接口状态机
+→ 单臂虚拟 Pick-and-Place
+→ 单臂 MuJoCo Pick-and-Place
+→ 双臂双手 Pick-and-Place
+→ 预插入位姿任务
+→ 大间隙直线 Peg-in-Hole
+→ 力阈值保护
+→ 柔顺插入
+→ 双臂相对位姿协调
+→ 触觉与抓持力调节
+→ 失败检测与恢复
+
+一句话总结：
+
+先用 Pick-and-Place 验证“系统是否能协同工作”，再用 Peg-in-Hole 验证“系统是否真正具备装配能力”。
+"""
