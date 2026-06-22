@@ -34,7 +34,14 @@ class AssemblyTaskNode(Node):
     MOVE_ARM_UNAVAILABLE_ERROR = 3201
 
     def __init__(self):
-        """初始化任务编排节点和所需 ROS 通信接口。"""
+        """
+        初始化任务编排节点和所需 ROS 通信接口。
+            将会初始化以下四个接口：
+                - StartTask service
+                - ResetScene client
+                - MoveArm action client
+                - TaskState publisher
+        """
         super().__init__('assembly_task_node')
 
         # 构造函数里的属性：属于“某一个对象实例”，每个对象各有一份，适合放运行时状态和资源。
@@ -43,20 +50,27 @@ class AssemblyTaskNode(Node):
         self._current_state = 'IDLE' # 空闲
         self._previous_state = ''
 
+        # StartTask service
         self._start_task_service = self.create_service(
             StartTask,
             self.START_TASK_SERVICE,
             self._handle_start_task,
         )
+
+        # ResetScene client
         self._reset_scene_client = self.create_client(
             ResetScene,
             self.RESET_SCENE_SERVICE,
         )
+
+        # MoveArm action client
         self._move_arm_action_client = ActionClient(
             self,
             MoveArm,
             self.MOVE_ARM_ACTION,
         )
+
+        # TaskState publisher
         self._task_state_publisher = self.create_publisher(
             TaskState,
             self.TASK_STATE_TOPIC,
@@ -98,10 +112,11 @@ class AssemblyTaskNode(Node):
         response.error_code = 0
         response.message = 'Task accepted'
 
+        # 创建一个后台线程，并让任务在后台执行。
         task_thread = threading.Thread(
             target=self._run_task,
-            args=(task_id,),
-            daemon=True,
+            args=(task_id,), # 只有一个元素的元组
+            daemon=True, # 表示这是一个守护线程。主程序退出时，这个后台线程不会阻止程序退出。
         )
         task_thread.start()
 
@@ -116,6 +131,7 @@ class AssemblyTaskNode(Node):
     def _generate_task_id(self):
         """生成 MVP-0 阶段使用的简单递增任务编号。"""
         with self._state_lock:
+            # 进入下面这段代码之前，先把锁拿到；代码执行完后，自动释放锁。
             self._task_counter += 1
             return f'mvp0_task_{self._task_counter:04d}'
 
@@ -218,6 +234,8 @@ class AssemblyTaskNode(Node):
 
         request = ResetScene.Request()
         request.task_id = task_id
+
+        # 已经发出请求了，异步等待
         future = self._reset_scene_client.call_async(request)
 
         if not self._wait_for_future(future, timeout_sec=5.0):
