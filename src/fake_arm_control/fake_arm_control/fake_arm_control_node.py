@@ -48,6 +48,8 @@ class FakeArmControlNode(Node):
     ACTION_NAME = '/assembly/move_arm'
     SUPPORTED_ARM = 'right_arm'
     SUPPORTED_TARGET = 'home'
+    HARDWARE_ARM_MODEL = 'Franka Research 3'
+    HARDWARE_HAND_MODEL = '因时 RH56DFTP-2R'
 
     UNSUPPORTED_ARM_ERROR = 2001
     UNSUPPORTED_TARGET_ERROR = 2002
@@ -67,6 +69,9 @@ class FakeArmControlNode(Node):
         self.get_logger().info(
             'event=fake_arm_control_started '
             f'action={self.ACTION_NAME!r} '
+            f'supported_arm={self.SUPPORTED_ARM!r} '
+            f'hardware_arm_model={self.HARDWARE_ARM_MODEL!r} '
+            f'paired_hand_model={self.HARDWARE_HAND_MODEL!r} '
             f'{self._arm_state.to_log_fields()}'
         )
 

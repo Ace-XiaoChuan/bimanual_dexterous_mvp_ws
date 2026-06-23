@@ -1,5 +1,11 @@
 """
 双臂灵巧手协同装配 MVP 方案
+
+硬件选型更新：
+机械臂采用 Franka Research 3。
+灵巧手采用因时 RH56DFTP-2R。
+本文仍保留早期 MVP 分阶段思路，具体命名和真机接入以
+doc/hardware/hardware_baseline.md 为准。
 ——以 Pick-and-Place 作为 Peg-in-Hole 占位任务
 
 文档版本：v0.1
@@ -411,8 +417,8 @@ cylindrical_grasp:
 建议先完成：
 
 固定场景
-＋单个 Franka
-＋单只灵巧手
+＋单个 Franka Research 3
+＋单只因时 RH56DFTP-2R 灵巧手
 ＋单个物体
 ＋固定抓型
 ＋逻辑附着
@@ -529,8 +535,8 @@ MVP-1：RViz 单臂 Pick-and-Place
 
 内容：
 
-1. 单 Franka；
-2. 虚拟灵巧手；
+1. 单 Franka Research 3；
+2. 因时 RH56DFTP-2R 的虚拟/占位模型；
 3. 固定目标点；
 4. 逻辑附着；
 5. 完成抓取和放置动画。
@@ -539,7 +545,7 @@ MVP-2：MuJoCo 单臂 Pick-and-Place
 
 内容：
 
-1. 单 Franka 和灵巧手进入 MuJoCo；
+1. 单 Franka Research 3 和因时 RH56DFTP-2R 进入 MuJoCo；
 2. 关节控制正常；
 3. 物体可生成和重置；
 4. 完成逻辑抓取和放置。
@@ -693,7 +699,7 @@ InsertOperation 内部逐步加入：
 
 第 2 周：
 
-1. 接入单个 Franka MoveIt；
+1. 接入单个 Franka Research 3 MoveIt；
 2. 配置固定目标点；
 3. 接入灵巧手固定抓型；
 4. 完成 RViz 中的 Pick-and-Place；

@@ -26,6 +26,8 @@ class AssemblyTaskNode(Node):
     TARGET_ARM = 'right_arm'
     TARGET_NAME = 'home'
     MOVE_ARM_TIMEOUT_SEC = 5.0
+    TARGET_ARM_MODEL = 'Franka Research 3'
+    TARGET_HAND_MODEL = '因时 RH56DFTP-2R'
 
     # error code
     EMPTY_TASK_NAME_ERROR = 3001
@@ -36,7 +38,7 @@ class AssemblyTaskNode(Node):
     def __init__(self):
         """
         初始化任务编排节点和所需 ROS 通信接口。
-            将会初始化以下四个接口：
+            将会初始化以下四个接口,并做合法性校验：
                 - StartTask service
                 - ResetScene client
                 - MoveArm action client
@@ -82,7 +84,10 @@ class AssemblyTaskNode(Node):
             f'start_task_service={self.START_TASK_SERVICE!r} '
             f'reset_scene_service={self.RESET_SCENE_SERVICE!r} '
             f'move_arm_action={self.MOVE_ARM_ACTION!r} '
-            f'task_state_topic={self.TASK_STATE_TOPIC!r}'
+            f'task_state_topic={self.TASK_STATE_TOPIC!r} '
+            f'target_arm={self.TARGET_ARM!r} '
+            f'target_arm_model={self.TARGET_ARM_MODEL!r} '
+            f'target_hand_model={self.TARGET_HAND_MODEL!r}'
         )
 
     def _handle_start_task(self, request, response):

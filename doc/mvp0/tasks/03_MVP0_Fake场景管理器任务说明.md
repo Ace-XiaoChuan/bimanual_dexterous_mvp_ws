@@ -247,6 +247,9 @@ right_arm
 home
 ```
 
+其中 `right_arm` 是逻辑名，在当前硬件基线中映射到首个或右侧
+Franka Research 3；第四阶段仍然只实现 fake Action Server。
+
 然后即可开始连接：
 
 ```text

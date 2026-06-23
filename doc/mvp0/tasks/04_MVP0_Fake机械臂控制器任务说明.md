@@ -36,6 +36,16 @@ arm_name = "right_arm"
 target_name = "home"
 ```
 
+硬件映射说明：
+
+```text
+right_arm = 首个或右侧 Franka Research 3 的逻辑名
+right_hand = 因时 RH56DFTP-2R 的逻辑名，本阶段不控制灵巧手
+```
+
+本阶段仍然是 fake 节点，不加载 Franka Research 3 或因时 RH56DFTP-2R
+真实驱动，也不发送真实关节命令。
+
 暂不实现：
 
 ```text
@@ -48,7 +58,7 @@ place
 笛卡尔空间控制
 MoveIt
 MuJoCo
-真实机械臂驱动
+Franka Research 3 真实机械臂驱动
 碰撞检测
 失败注入
 ```

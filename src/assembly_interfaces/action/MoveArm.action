@@ -1,6 +1,7 @@
 # Goal
 
-# 机械臂命名空间或逻辑名称，例如 left_arm 或 right_arm
+# 机械臂命名空间或逻辑名称，例如 left_arm 或 right_arm；
+# right_arm 在当前硬件基线中映射到首个或右侧 Franka Research 3
 string arm_name
 
 # 命名运动目标，例如 home、pregrasp 或 grasp
