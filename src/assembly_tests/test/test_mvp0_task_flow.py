@@ -35,6 +35,9 @@ class TestMvp0TaskFlow(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """为该测试类启动一次真实 MVP-0 launch 文件。
+        另外需要注意：setUpClass()函数其实没有被显式调用，
+        这是因为 unittest 认识这个约定名称 setUpClass，于是替我调用它一次。
+        正常情况下，类方法还是需要显式调用的，不要误会了。
 
         setUpClass、setUp、tearDown 和 tearDownClass 都是 unittest
         fixture，也就是测试夹具/测试环境：
@@ -94,11 +97,25 @@ class TestMvp0TaskFlow(unittest.TestCase):
 
     @classmethod
     def _read_launch_output(cls):
+        """在后台线程中持续保存 launch 输出。
+
+        子进程的 stdout 像一根管道。测试主线程负责发请求和做断言，
+        这个后台线程负责把管道里的日志读出来，存进 launch_output。
+
+        这样做有两个好处：
+        - launch 输出不会因为没人读取而堆积。
+        - 测试失败时，断言消息可以带上最近的 launch 日志。
+        """
         for line in cls.launch_process.stdout:
             cls.launch_output.append(line)
 
     def setUp(self):
-        """Create one ROS test node and wait for the launched system."""
+        """为每个测试用例创建 ROS 测试节点。
+
+        setUp() 会在每一个 test_* 方法执行前自动运行。
+        这里创建的 node、service client、action client 和 topic subscription
+        都属于“本次测试用例”的资源；测试结束后会在 tearDown() 中释放。
+        """
         rclpy.init()
         # 测试本身也是 ROS 2 图中的参与者，像一个自动化验收员。
         self.node = rclpy.create_node('mvp0_task_flow_test_node')
@@ -137,7 +154,12 @@ class TestMvp0TaskFlow(unittest.TestCase):
         self._wait_for_mvp0_interfaces()
 
     def tearDown(self):
-        """Stop the ROS executor and release test node resources."""
+        """释放每个测试用例创建的 ROS 资源。
+
+        tearDown() 会在每一个 test_* 方法结束后自动运行。
+        即使测试中间断言失败，测试框架通常也会尽量执行 tearDown()，
+        所以这里适合做关闭线程、销毁 client/subscription/node 这类清理工作。
+        """
         self.stop_spinning.set()
         self.spin_thread.join(timeout=2.0)
         self.executor.shutdown()
@@ -151,7 +173,7 @@ class TestMvp0TaskFlow(unittest.TestCase):
 
     def test_mvp0_task_flow_accepts_rejects_and_repeats(self):
         """Cover valid, invalid, state publishing, and repeated requests.
-
+        此函数会被测试框架自动发现并调用。
         测试代码通常可以用一个非常实用的结构理解：
         - Arrange：准备环境。
         - Act：执行被测行为。
@@ -207,6 +229,12 @@ class TestMvp0TaskFlow(unittest.TestCase):
         )
 
     def _spin(self):
+        """在后台线程中驱动 ROS 回调。
+
+        ROS 2 的 service response、action result 和 topic callback 都需要
+        executor 被 spin，回调才会被调度执行。测试主线程正在等待断言结果，
+        所以这里单独开一个线程循环 spin_once()。
+        """
         while rclpy.ok() and not self.stop_spinning.is_set():
             self.executor.spin_once(timeout_sec=0.1)
 
@@ -268,6 +296,12 @@ class TestMvp0TaskFlow(unittest.TestCase):
         return self.launch_process.poll() is None
 
     def _wait_for_task_state_publisher(self, timeout_sec):
+        """等待 /assembly/task_state 上出现 publisher。
+
+        service 和 action 有现成的 wait_for_service()/wait_for_server()，
+        topic 这里用 count_publishers() 轮询。看到 publisher 后，说明
+        assembly_task_node 至少已经创建了状态发布接口。
+        """
         deadline = time.monotonic() + timeout_sec
         while time.monotonic() < deadline:
             if self.node.count_publishers(TASK_STATE_TOPIC) > 0:
@@ -289,6 +323,14 @@ class TestMvp0TaskFlow(unittest.TestCase):
         return future.result()
 
     def _wait_for_future(self, future, timeout_sec):
+        """等待 ROS 异步调用完成，并避免测试无限卡住。
+
+        call_async() 不会立刻返回业务结果，而是返回一个 future。
+        future.done() 变成 True 时，才表示 response 已经回来。
+
+        测试里必须给等待动作加 timeout。否则被测系统如果崩溃或接口失联，
+        测试就会一直挂住，而不是给出清楚的失败信息。
+        """
         deadline = time.monotonic() + timeout_sec
         while time.monotonic() < deadline:
             if future.done():
@@ -299,6 +341,17 @@ class TestMvp0TaskFlow(unittest.TestCase):
         return future.done()
 
     def _wait_for_state(self, task_id, expected_state, timeout_sec=10.0):
+        """等待某个 task_id 发布指定状态。
+
+        /assembly/task_state 是一个共享 topic。连续执行任务时，多个 task_id
+        的状态消息会混在同一个列表里，所以等待时必须同时匹配 task_id 和
+        expected_state。
+
+        这里使用 Condition，而不是简单 sleep 固定时间：
+        - 收到新状态时，callback 会 notify_all() 叫醒等待线程。
+        - 没收到状态时，等待线程最多每 0.1 秒醒来检查一次。
+        这样既不会空转太厉害，也能比较快地响应新消息。
+        """
         deadline = time.monotonic() + timeout_sec
         with self.states_condition:
             while time.monotonic() < deadline:
@@ -318,12 +371,23 @@ class TestMvp0TaskFlow(unittest.TestCase):
         )
 
     def _latest_state(self, task_id, expected_state):
+        """从已收到的状态里找最近一个匹配项。
+
+        reversed(self.states) 表示从列表尾部往前找。尾部是最新收到的消息，
+        所以一旦找到匹配的 task_id 和 current_state，就可以直接返回。
+        """
         for state in reversed(self.states):
             if state.task_id == task_id and state.current_state == expected_state:
                 return state
         return None
 
     def _assert_successful_task_states(self, task_id):
+        """断言一个任务经历了成功路径的关键状态。
+
+        只检查最终 SUCCESS 还不够。一个错误实现可能跳过 RESETTING 或 ARM_HOME
+        直接发布 SUCCESS。这个 helper 会确认三个关键状态都出现过，并且出现
+        顺序是 RESETTING -> ARM_HOME -> SUCCESS。
+        """
         states = [state.current_state for state in self._states_for(task_id)]
 
         # 成功不只看最终 SUCCESS，还要确认关键过程状态顺序正确。
@@ -352,7 +416,17 @@ class TestMvp0TaskFlow(unittest.TestCase):
             ]
 
     def _task_numbers(self, task_ids):
+        """从 task_id 字符串中取出末尾编号。
+
+        当前 task_id 格式类似 mvp0_task_0001。测试只关心最后的数字部分，
+        用它检查连续任务的编号是否递增。
+        """
         return [int(task_id.rsplit('_', 1)[1]) for task_id in task_ids]
 
     def _launch_output_tail(self, line_count=60):
+        """返回 launch 输出的最后若干行，供失败消息使用。
+
+        测试失败时，完整日志通常很长；最后几十行往往最接近失败现场。
+        把这段日志拼进断言消息，可以少开一个终端翻日志。
+        """
         return ''.join(self.launch_output[-line_count:])

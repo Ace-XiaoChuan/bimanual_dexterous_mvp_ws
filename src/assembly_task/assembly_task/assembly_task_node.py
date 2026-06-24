@@ -48,8 +48,8 @@ class AssemblyTaskNode(Node):
 
         # 构造函数里的属性：属于“某一个对象实例”，每个对象各有一份，适合放运行时状态和资源。
         self._task_counter = 0
-        self._state_lock = threading.Lock() # 创建一个互斥锁
-        self._current_state = 'IDLE' # 空闲
+        self._state_lock = threading.Lock()  # 创建一个互斥锁
+        self._current_state = 'IDLE'  # 空闲
         self._previous_state = ''
 
         # StartTask service
@@ -120,8 +120,8 @@ class AssemblyTaskNode(Node):
         # 创建一个后台线程，并让任务在后台执行。
         task_thread = threading.Thread(
             target=self._run_task,
-            args=(task_id,), # 只有一个元素的元组
-            daemon=True, # 表示这是一个守护线程。主程序退出时，这个后台线程不会阻止程序退出。
+            args=(task_id,),  # 只有一个元素的元组
+            daemon=True,  # 表示这是一个守护线程。主程序退出时，这个后台线程不会阻止程序退出。
         )
         task_thread.start()
 

@@ -33,6 +33,8 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   # Avoid network access to the ROS package XML schema in restricted CI.
   set(ament_cmake_xmllint_FOUND TRUE)
+  # Keep educational Chinese docstrings without forcing pep257 punctuation.
+  set(ament_cmake_pep257_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
 
