@@ -1,0 +1,15 @@
+# fake 场景中的逻辑物体 ID，例如 mvp_object。
+string object_id
+---
+bool success
+
+# 逻辑位置名称，例如 pickup_zone、attached 或 place_zone。
+string object_location
+
+bool object_attached
+
+# 当前附着该物体的机器人 link 名；未附着时为空字符串。
+string attached_link
+
+int32 error_code
+string message

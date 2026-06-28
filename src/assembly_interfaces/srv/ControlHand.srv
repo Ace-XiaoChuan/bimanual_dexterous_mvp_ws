@@ -1,0 +1,14 @@
+# 逻辑手部名称，例如 right_hand。
+string hand_name
+
+# 高层手部命令：open、preshape、close、hold 或 release。
+string command
+
+# 预设抓型名称；MVP-1 可以先只使用 default。
+string grasp_name
+
+float32 timeout_sec
+---
+bool success
+int32 error_code
+string message

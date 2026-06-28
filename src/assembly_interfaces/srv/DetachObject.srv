@@ -1,0 +1,11 @@
+string task_id
+
+# fake 场景中的逻辑物体 ID，例如 mvp_object。
+string object_id
+
+# 解除附着后给物体设置的逻辑位置，例如 place_zone。
+string target_location
+---
+bool success
+int32 error_code
+string message

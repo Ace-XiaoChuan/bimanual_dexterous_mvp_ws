@@ -10,6 +10,11 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TaskState.msg"
+  "srv/AttachObject.srv"
+  "srv/ControlHand.srv"
+  "srv/DetachObject.srv"
+  "srv/ExecuteTerminalOperation.srv"
+  "srv/GetObjectPose.srv"
   "srv/ResetScene.srv"
   "srv/StartTask.srv"
   "action/MoveArm.action"

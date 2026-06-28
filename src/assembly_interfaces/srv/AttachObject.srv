@@ -1,0 +1,11 @@
+string task_id
+
+# fake 场景中的逻辑物体 ID，例如 mvp_object。
+string object_id
+
+# 附着后逻辑上携带该物体的机器人 link 名。
+string link_name
+---
+bool success
+int32 error_code
+string message

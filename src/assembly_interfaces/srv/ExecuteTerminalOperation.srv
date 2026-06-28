@@ -1,0 +1,16 @@
+string task_id
+
+# 高层末端操作类型；MVP-1 只支持 PLACE。
+string operation_type
+
+# 末端操作作用的逻辑物体 ID。
+string object_id
+
+# 末端操作的逻辑目标位置，例如 place_zone。
+string target_location
+
+float32 timeout_sec
+---
+bool success
+int32 error_code
+string message

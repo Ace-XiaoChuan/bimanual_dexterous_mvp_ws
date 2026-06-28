@@ -1,0 +1,87 @@
+# MVP-1 固定 Pick-and-Place 任务配置。
+# 当前只服务 fake 单臂闭环，不表示真实规划、真实抓取或真机控制参数。
+
+# 任务级固定参数，由 assembly_task 读取后串联 scene / arm / hand / terminal 节点。
+task:
+  # StartTask 请求中用于选择 MVP-1 状态机的任务名。
+  name: pick_and_place_mvp
+
+  # 逻辑机械臂名称，对应当前单臂链路中的右臂。
+  arm_name: right_arm
+
+  # 逻辑手部名称，MVP-1 中按夹爪化或预设抓型执行器处理。
+  hand_name: right_hand
+
+  # fake_scene_manager 中被抓取和放置的逻辑物体 ID。
+  object_id: mvp_object
+
+  # 物体重置后的逻辑起点位置。
+  source_location: pickup_zone
+
+  # DetachObject 和 PLACE 末端操作使用的逻辑目标位置。
+  target_location: place_zone
+
+  # MVP-1 只做放置占位；INSERT 留到 Peg-in-Hole 阶段。
+  terminal_operation: PLACE
+
+# fake_arm_control 支持的命名目标集合。
+# 这些值是 fake 目标名，不是 MoveIt 轨迹、真实关节角或笛卡尔位姿。
+arm_targets:
+  # 安全起始/结束位。
+  home: home
+
+  # 抓取前的接近位。
+  pregrasp: pregrasp
+
+  # 抓取执行位。
+  grasp: grasp
+
+  # 抓取后抬升位。
+  lift: lift
+
+  # 放置前的接近位。
+  preplace: preplace
+
+  # 放置执行位。
+  place: place
+
+  # 放置后撤退位。
+  retreat: retreat
+
+# fake_hand_control 支持的高层手部命令集合。
+# 当前只表达夹爪化或预设抓型语义，不控制 RH56DFX-2R 全关节。
+hand_commands:
+  # 打开手部，准备接近物体或释放物体。
+  open: open
+
+  # 切换到预抓取形态。
+  preshape: preshape
+
+  # 闭合手部，尝试抓住物体。
+  close: close
+
+  # 保持抓取状态，用于搬运阶段。
+  hold: hold
+
+  # 释放抓取状态。
+  release: release
+
+# 抓型配置。
+# MVP-1 可以先固定为 default，后续再扩展 pinch / power 等抓型库。
+grasp:
+  name: default
+
+# 各类调用的超时时间，单位为秒。
+# 超时后任务编排节点应进入 FAILED，并发布对应 TaskState。
+timeouts:
+  # MoveArm action 等待单个命名目标完成的时间。
+  move_arm_sec: 5.0
+
+  # ControlHand service 等待手部命令完成的时间。
+  control_hand_sec: 3.0
+
+  # ResetScene / AttachObject / DetachObject 等场景操作的等待时间。
+  scene_operation_sec: 2.0
+
+  # ExecuteTerminalOperation service 的等待时间。
+  terminal_operation_sec: 3.0
