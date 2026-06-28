@@ -40,7 +40,7 @@ ros2 launch assembly_bringup mvp0_fake_system.launch.py
 | `target_name` | `home` |
 | `timeout_sec` | `5.0` |
 | 机械臂硬件映射 | Franka Research 3 |
-| 灵巧手硬件映射 | 因时 RH56DFTP-2R，仅做命名预留 |
+| 灵巧手硬件映射 | 因时 RH56DFX-2R，仅做命名预留 |
 
 ## StartTask Service
 

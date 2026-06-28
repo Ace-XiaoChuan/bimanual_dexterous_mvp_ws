@@ -49,7 +49,7 @@ class FakeArmControlNode(Node):
     SUPPORTED_ARM = 'right_arm'
     SUPPORTED_TARGET = 'home'
     HARDWARE_ARM_MODEL = 'Franka Research 3'
-    HARDWARE_HAND_MODEL = '因时 RH56DFTP-2R'
+    HARDWARE_HAND_MODEL = '因时 RH56DFX-2R'
 
     UNSUPPORTED_ARM_ERROR = 2001
     UNSUPPORTED_TARGET_ERROR = 2002

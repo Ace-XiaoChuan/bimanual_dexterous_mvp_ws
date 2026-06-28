@@ -15,7 +15,7 @@ package、service、action、topic、launch 和集成测试形成一个可重复
 ## 当前限制
 
 1. 不连接真实 Franka Research 3 机械臂。
-2. 不连接真实因时 RH56DFTP-2R 灵巧手。
+2. 不连接真实因时 RH56DFX-2R 灵巧手。
 3. 不加载真实硬件驱动、控制器或安全限制。
 4. 不使用 MoveIt、MTC、ros2_control 或 MuJoCo。
 5. 不执行真实 Pick-and-Place。
@@ -32,7 +32,7 @@ package、service、action、topic、launch 和集成测试形成一个可重复
 
 ## 已降级的失败注入测试
 
-README 中已将以下专项测试降级为后续增强验收项：
+MVP-0 总体任务说明中已将以下专项测试降级为后续增强验收项：
 
 ```text
 未启动 ResetScene 时进入 FAILED
@@ -53,7 +53,7 @@ README 中已将以下专项测试降级为后续增强验收项：
 部分环境中可能出现普通 `ros2 service call` 等待 service，而 `--no-daemon`
 可以看到节点和 service 的情况。这通常与 ROS 2 daemon 缓存或发现状态有关。
 
-README 已记录排查方式：
+排查方式已记录在 `doc/mvp0/tasks/00_MVP0_总体任务说明.md`：
 
 ```bash
 ros2 daemon stop
@@ -61,13 +61,9 @@ ros2 node list --no-daemon --spin-time 5
 ros2 service list --no-daemon --spin-time 5
 ```
 
-## 版本标签前仍需完成
+## 版本标签
 
-干净环境回归已经通过。版本冻结前仍需：
-
-1. 创建冻结 commit。
-2. 创建版本标签 `mvp0.0.0`。
-3. 将 README 顶部状态更新为 MVP-0 已完成。
+干净环境回归已经通过，冻结版本标签为 `mvp0.0.0`。
 
 ## 后续建议
 

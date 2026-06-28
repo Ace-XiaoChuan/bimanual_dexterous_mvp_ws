@@ -40,10 +40,10 @@ target_name = "home"
 
 ```text
 right_arm = 首个或右侧 Franka Research 3 的逻辑名
-right_hand = 因时 RH56DFTP-2R 的逻辑名，本阶段不控制灵巧手
+right_hand = 因时 RH56DFX-2R 的逻辑名，本阶段不控制灵巧手
 ```
 
-本阶段仍然是 fake 节点，不加载 Franka Research 3 或因时 RH56DFTP-2R
+本阶段仍然是 fake 节点，不加载 Franka Research 3 或因时 RH56DFX-2R
 真实驱动，也不发送真实关节命令。
 
 暂不实现：

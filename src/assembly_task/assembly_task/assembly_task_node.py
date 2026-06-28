@@ -27,7 +27,7 @@ class AssemblyTaskNode(Node):
     TARGET_NAME = 'home'
     MOVE_ARM_TIMEOUT_SEC = 5.0
     TARGET_ARM_MODEL = 'Franka Research 3'
-    TARGET_HAND_MODEL = '因时 RH56DFTP-2R'
+    TARGET_HAND_MODEL = '因时 RH56DFX-2R'
 
     # error code
     EMPTY_TASK_NAME_ERROR = 3001
