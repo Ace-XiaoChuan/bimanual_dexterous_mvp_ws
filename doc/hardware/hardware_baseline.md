@@ -8,6 +8,10 @@ MVP-0 / MVP-1 仍以纯软件 fake 系统为主，不加载真实硬件驱动，
 真实关节命令。本文档中的硬件信息用于保证后续模型、命名、接口和实验路线
 提前对齐。
 
+FR3 API 分层、MoveIt 仿真/真机解耦方式，以及 `doc/hand/` 中 RH56DFX
+串口资料的摘要和缺口清单，见
+`doc/hardware/fr3_rh56_api_integration.md`。
+
 ## 1. 已确定硬件
 
 | 角色 | 型号 | 当前工程映射 | MVP 阶段用法 |
@@ -152,6 +156,8 @@ MVP-0 / MVP-1 不包含：
 
 * FR3 序列号、IP、控制器版本和驱动来源。
 * RH56DFX-2R 序列号、通信方式、驱动来源和控制模式。
+* FR3 的 `franka_ros2` / MoveIt / `ros2_control` 接入配置和验证命令。
+* RH56DFX-2R 官方通信协议版本、完整寄存器表、错误码含义和安全阈值。
 * URDF、mesh、SRDF、MoveIt 配置包来源。
 * `right_arm_flange -> right_hand_palm` 标定结果。
 * 关节限位、速度限制、力矩限制和真机调试限速策略。
