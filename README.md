@@ -72,8 +72,11 @@ StartTask -> ResetScene -> MoveArm(right_arm, home) -> TaskState
 │   ├── mvp0/
 │   │   ├── tasks/               # MVP-0 分阶段任务说明
 │   │   └── acceptance/          # MVP-0 验收结果、接口快照和完成清单
-│   └── mvp1/
-│       └── tasks/               # MVP-1 Fake Pick-and-Place 任务说明
+│   ├── mvp1/
+│   │   └── tasks/               # MVP-1 Fake Pick-and-Place 任务说明
+│   └── mvp2/
+│       ├── tasks/               # MVP-2 MoveIt / RViz 任务说明
+│       └── acceptance/          # MVP-2 验收证据落点
 ├── src/
 │   ├── assembly_interfaces/     # 自定义 msg/srv/action 接口
 │   ├── assembly_task/           # 最小任务编排节点
@@ -574,6 +577,8 @@ MVP-0 的完整非目标和已知限制见
 * `doc/mvp0/tasks/00_MVP0_总体任务说明.md`：MVP-0 总体目标、接口、运行方式和验收摘要。
 * `doc/mvp0/tasks/`：MVP-0 的分阶段任务说明。
 * `doc/mvp1/tasks/`：MVP-1 Fake 单臂 Pick-and-Place 的 00-08 分点任务文档。
+* `doc/mvp2/tasks/`：MVP-2 RViz / MoveIt 单 FR3 Pick-and-Place 的 00-09
+  分点任务文档。
 * `doc/hardware/hardware_baseline.md`：Franka Research 3 与因时
   RH56DFX-2R 的硬件选型和命名基线。
 * `doc/hardware/fr3_rh56_api_integration.md`：FR3 API 分层、MoveIt
