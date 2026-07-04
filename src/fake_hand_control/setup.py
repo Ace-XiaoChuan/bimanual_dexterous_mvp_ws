@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'fake_hand_control_node = '
+            'fake_hand_control.fake_hand_control_node:main',
         ],
     },
 )
