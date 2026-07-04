@@ -71,7 +71,8 @@ terminal operation，而不必重写场景状态管理。
 ```text
 不支持的 operation_type -> 6001
 target_location 为空 -> 6002
-timeout_sec <= 0 -> 可复用 6002 或新增更具体错误码
+timeout_sec <= 0 -> 6003
+object_id 为空 -> 6004
 ```
 
 ## 6. 日志要求
@@ -104,6 +105,7 @@ fake_terminal_operation_node 可启动
 /assembly/execute_terminal_operation 可发现
 PLACE 返回 success
 不支持的 operation_type 返回错误码
+object_id / target_location / timeout_sec 非法时返回明确错误码
 日志可定位 task_id 和 operation_type
 ```
 

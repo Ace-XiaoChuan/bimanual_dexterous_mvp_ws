@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='ace',
     maintainer_email='3526623168@qq.com',
-    description='TODO: Package description',
+    description='Fake terminal operation service for the MVP-1 assembly demo',
     license='Apache-2.0',
     extras_require={
         'test': [
@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'fake_terminal_operation_node = '
+            'fake_terminal_operation.fake_terminal_operation_node:main',
         ],
     },
 )

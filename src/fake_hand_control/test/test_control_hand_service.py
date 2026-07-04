@@ -34,6 +34,9 @@ def hand_service():
 
     # Executor 负责调度节点回调。
     # 这里把服务端和客户端都加进去，测试进程才能同时发请求和处理服务回调。
+    # 不是说“先执行 server，再执行 client”。
+    # 它的意思是：把这两个 node 都交给同一个 SingleThreadedExecutor 管理，
+    # 后面谁有 callback ready，executor 就在同一个线程里依次处理谁。
     executor = SingleThreadedExecutor()
     executor.add_node(server_node)
     executor.add_node(client_node)
@@ -45,9 +48,13 @@ def hand_service():
 
     # wait_for_service 用来确认服务已经注册成功。
     # 如果这里失败，说明 /assembly/control_hand 本身不可发现。
+    # assert 是 Python 的断言：用于检查“这里必须满足某个条件”。
+    # 条件不成立时，程序会立刻报错，抛出 AssertionError。
     assert client.wait_for_service(timeout_sec=2.0)
 
     try:
+        # yield：先把 client 和 executor 暂时交给测试；测试结束后，再回到这里继续执行。
+        # 先：创建客户端节点、创建 executor
         yield client, executor
     finally:
         # fixture 退出时清理节点和 ROS context。
