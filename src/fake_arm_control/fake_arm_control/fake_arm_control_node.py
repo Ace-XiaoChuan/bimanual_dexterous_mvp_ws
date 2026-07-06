@@ -47,7 +47,15 @@ class FakeArmControlNode(Node):
 
     ACTION_NAME = '/assembly/move_arm'
     SUPPORTED_ARM = 'right_arm'
-    SUPPORTED_TARGET = 'home'
+    SUPPORTED_TARGET = [
+        'home',
+        'pregrasp',
+        'grasp',
+        'lift',
+        'preplace',
+        'place',
+        'retreat',
+    ]
     HARDWARE_ARM_MODEL = 'Franka Research 3'
     HARDWARE_HAND_MODEL = '因时 RH56DFX-2R'
 
@@ -76,7 +84,7 @@ class FakeArmControlNode(Node):
         )
 
     def _execute_move_arm(self, goal_handle):
-        """执行 Fake MoveArm action，并返回业务层面的执行结果。"""
+        """回调函数，执行 Fake MoveArm action，并返回业务层面的执行结果。"""
         request = goal_handle.request
         self.get_logger().info(
             'event=move_arm_goal_received '
@@ -100,7 +108,7 @@ class FakeArmControlNode(Node):
         result = MoveArm.Result()
         result.success = True
         result.error_code = 0
-        result.message = 'Arm moved to home successfully'
+        result.message = f'Arm moved to {request.target_name} successfully'
 
         self._publish_feedback(goal_handle, 'succeeded', 1.0)
         self._finish_goal(goal_handle, request, result)
@@ -108,6 +116,7 @@ class FakeArmControlNode(Node):
 
     def _validate_request(self, request):
         """校验 goal 请求；合法时返回 None，非法时返回失败结果。"""
+        # 非法超时时间错误
         if request.timeout_sec <= 0.0:
             return self._make_result(
                 False,
@@ -115,6 +124,7 @@ class FakeArmControlNode(Node):
                 'timeout_sec must be positive',
             )
 
+        # 无效机械臂名称错误
         if request.arm_name != self.SUPPORTED_ARM:
             return self._make_result(
                 False,
@@ -122,7 +132,8 @@ class FakeArmControlNode(Node):
                 'unsupported arm_name',
             )
 
-        if request.target_name != self.SUPPORTED_TARGET:
+        # 无效目标名称错误
+        if request.target_name not in self.SUPPORTED_TARGET:
             return self._make_result(
                 False,
                 self.UNSUPPORTED_TARGET_ERROR,
