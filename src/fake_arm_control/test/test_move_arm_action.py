@@ -73,6 +73,9 @@ def _send_move_arm_goal(
         """记录 action 执行过程中收到的 feedback."""
         feedback_list.append(feedback_msg.feedback)
 
+    # send_goal_async() 是 Action 客户端向 Action 服务端发送一个目标（goal） 的函数。
+    # 在它执行过程中，把反馈交给 feedback_callback 处理。”
+    # 它不会立刻返回“运动成功/失败”，而是立刻返回一个 Future 对象
     send_goal_future = action_client.send_goal_async(
         goal,
         feedback_callback=feedback_callback,
@@ -98,6 +101,8 @@ def _send_move_arm_goal(
     return result_response.result, feedback_list
 
 
+# pytest 的参数化测试。
+# 把同一个测试函数，用不同的 target_name 值自动运行多次。
 @pytest.mark.parametrize(
     'target_name',
     [

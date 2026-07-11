@@ -11,6 +11,7 @@ from assembly_interfaces.srv import ControlHand
 from fake_hand_control.fake_hand_control_node import FakeHandControlNode
 
 
+# fixture：准备测试环境
 @pytest.fixture
 def hand_service():
     """启动服务端节点、客户端节点和 executor."""
@@ -53,7 +54,8 @@ def hand_service():
     assert client.wait_for_service(timeout_sec=2.0)
 
     try:
-        # yield：先把 client 和 executor 暂时交给测试；测试结束后，再回到这里继续执行。
+        # yield：把环境交给测试，用完回来清理.
+        # 即先把 client 和 executor 暂时交给测试；测试结束后，再回到这里继续执行。
         # 先：创建客户端节点、创建 executor
         yield client, executor
     finally:

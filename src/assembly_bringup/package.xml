@@ -11,7 +11,9 @@
 
   <exec_depend>assembly_task</exec_depend>
   <exec_depend>fake_arm_control</exec_depend>
+  <exec_depend>fake_hand_control</exec_depend>
   <exec_depend>fake_scene_manager</exec_depend>
+  <exec_depend>fake_terminal_operation</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>

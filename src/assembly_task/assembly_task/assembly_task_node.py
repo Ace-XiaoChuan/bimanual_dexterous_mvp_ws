@@ -1,11 +1,19 @@
-"""MVP-0 最小任务编排节点。"""
+"""MVP-1 最小任务编排节点。"""
 
 import threading
 import time
+from pathlib import Path
 
+import yaml
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from assembly_interfaces.action import MoveArm
 from assembly_interfaces.msg import TaskState
+from assembly_interfaces.srv import AttachObject
+from assembly_interfaces.srv import ControlHand
+from assembly_interfaces.srv import DetachObject
+from assembly_interfaces.srv import ExecuteTerminalOperation
+from assembly_interfaces.srv import GetObjectPose
 from assembly_interfaces.srv import ResetScene
 from assembly_interfaces.srv import StartTask
 from rclpy.action import ActionClient
@@ -14,18 +22,22 @@ from rclpy.node import Node
 
 
 class AssemblyTaskNode(Node):
-    """串联 StartTask、ResetScene 和 MoveArm 的最小任务节点。"""
+    """串联各个任务节点的最小任务节点。"""
 
     # 类属性：属于“这个类本身”，所有对象共享，适合放固定配置、常量。
     START_TASK_SERVICE = '/assembly/start_task'
     RESET_SCENE_SERVICE = '/assembly/reset_scene'
     MOVE_ARM_ACTION = '/assembly/move_arm'
     TASK_STATE_TOPIC = '/assembly/task_state'
+    CONTROL_HAND_CLIENT = '/assembly/control_hand'
+    ATTACH_OBJECT_CLIENT = '/assembly/attach_object'
+    DETACH_OBJECT_CLIENT = '/assembly/detach_object'
+    GET_OBJECT_POSE_CLIENT = '/assembly/get_object_pose'
+    EXECUTE_TERMINAL_OPERATION_CLIENT = '/assembly/execute_terminal_operation'
 
-    SUPPORTED_TASK_NAME = 'mvp0_home'
-    TARGET_ARM = 'right_arm'
+    MVP0_HOME = 'mvp0_home'
+    PICK_AND_PLACE_MVP = 'pick_and_place_mvp'
     TARGET_NAME = 'home'
-    MOVE_ARM_TIMEOUT_SEC = 5.0
     TARGET_ARM_MODEL = 'Franka Research 3'
     TARGET_HAND_MODEL = '因时 RH56DFX-2R'
 
@@ -34,24 +46,41 @@ class AssemblyTaskNode(Node):
     UNSUPPORTED_TASK_NAME_ERROR = 3002
     RESET_SCENE_UNAVAILABLE_ERROR = 3101
     MOVE_ARM_UNAVAILABLE_ERROR = 3201
+    CONTROL_HAND_UNAVAILABLE_ERROR = 7001
+    SCENE_OBJECT_UNAVAILABLE_ERROR = 7002
+    TERMINAL_OPERATION_UNAVAILABLE_ERROR = 7003
 
     def __init__(self):
         """
         初始化任务编排节点和所需 ROS 通信接口。
-            将会初始化以下四个接口,并做合法性校验：
-                - StartTask service
-                - ResetScene client
-                - MoveArm action client
-                - TaskState publisher
+            将会初始化诸多接口,并做合法性校验：
+
         """
         super().__init__('assembly_task_node')
 
-        # 构造函数里的属性：属于“某一个对象实例”，每个对象各有一份，适合放运行时状态和资源。
+        # 构造函数初始化属性：每个对象各有一份。
         self._task_counter = 0
-        self._state_lock = threading.Lock()  # 创建一个互斥锁
+        self._state_lock = threading.Lock()  # 状态互斥锁
         self._current_state = 'IDLE'  # 空闲
         self._previous_state = ''
 
+        # 读取 config 配置的 yaml
+        self._mvp1_config = self._load_mvp1_config()
+        self._task_config = self._mvp1_config['task']
+        self._arm_targets = self._mvp1_config['arm_targets']
+        self._hand_commands = self._mvp1_config['hand_commands']
+        self._timeouts = self._mvp1_config['timeouts']
+        self._grasp_config = self._mvp1_config['grasp']
+        self._mvp1_task_name = self._task_config.get(
+            'name',
+            self.PICK_AND_PLACE_MVP,
+        )
+        self._supported_task_names = [
+            self.MVP0_HOME,
+            self._mvp1_task_name,
+        ]
+
+        # 初始化 ROS2 接口
         # StartTask service
         self._start_task_service = self.create_service(
             StartTask,
@@ -64,6 +93,31 @@ class AssemblyTaskNode(Node):
             ResetScene,
             self.RESET_SCENE_SERVICE,
         )
+
+        # ControlHand client
+        self._control_hand_client = self.create_client(
+            ControlHand,
+            self.CONTROL_HAND_CLIENT)
+
+        # AttachObject client
+        self._attach_object_client = self.create_client(
+            AttachObject,
+            self.ATTACH_OBJECT_CLIENT)
+
+        # DetachObject client
+        self._detach_object_client = self.create_client(
+            DetachObject,
+            self.DETACH_OBJECT_CLIENT)
+
+        # GetObjectPose client
+        self._get_object_pose_client = self.create_client(
+            GetObjectPose,
+            self.GET_OBJECT_POSE_CLIENT)
+
+        # ExecuteTerminalOperation client
+        self._execute_terminal_operation_client = self.create_client(
+            ExecuteTerminalOperation,
+            self.EXECUTE_TERMINAL_OPERATION_CLIENT)
 
         # MoveArm action client
         self._move_arm_action_client = ActionClient(
@@ -83,9 +137,14 @@ class AssemblyTaskNode(Node):
             'event=assembly_task_started '
             f'start_task_service={self.START_TASK_SERVICE!r} '
             f'reset_scene_service={self.RESET_SCENE_SERVICE!r} '
+            f'control_hand_client={self.CONTROL_HAND_CLIENT!r} '
+            f'attach_object_client={self.ATTACH_OBJECT_CLIENT!r} '
+            f'detach_object_client={self.DETACH_OBJECT_CLIENT!r} '
+            f'get_object_pose_client={self.GET_OBJECT_POSE_CLIENT!r} '
+            f'execute_terminal_operation_client={self.EXECUTE_TERMINAL_OPERATION_CLIENT!r} '
             f'move_arm_action={self.MOVE_ARM_ACTION!r} '
             f'task_state_topic={self.TASK_STATE_TOPIC!r} '
-            f'target_arm={self.TARGET_ARM!r} '
+            f'target_arm={self._task_config["arm_name"]!r} '
             f'target_arm_model={self.TARGET_ARM_MODEL!r} '
             f'target_hand_model={self.TARGET_HAND_MODEL!r}'
         )
@@ -104,7 +163,7 @@ class AssemblyTaskNode(Node):
             response.message = 'task_name must not be empty'
             return response
 
-        if task_name != self.SUPPORTED_TASK_NAME:
+        if task_name not in self._supported_task_names:
             response.accepted = False
             response.task_id = ''
             response.error_code = self.UNSUPPORTED_TASK_NAME_ERROR
@@ -120,7 +179,7 @@ class AssemblyTaskNode(Node):
         # 创建一个后台线程，并让任务在后台执行。
         task_thread = threading.Thread(
             target=self._run_task,
-            args=(task_id,),  # 只有一个元素的元组
+            args=(task_id, task_name),
             daemon=True,  # 表示这是一个守护线程。主程序退出时，这个后台线程不会阻止程序退出。
         )
         task_thread.start()
@@ -140,59 +199,254 @@ class AssemblyTaskNode(Node):
             self._task_counter += 1
             return f'mvp0_task_{self._task_counter:04d}'
 
-    def _run_task(self, task_id):
-        """按固定顺序执行最小任务链路。"""
-        previous_state = 'IDLE'
-        previous_state = self._publish_task_state(
-            task_id,
-            'RESETTING',
-            previous_state,
-            0.2,
-            0,
-            'Resetting scene',
-        )
+    def _load_mvp1_config(self):
+        """从安装后的 share 目录读取 MVP-1 Pick-and-Place 配置。"""
+        package_share = get_package_share_directory('assembly_task')
+        config_path = Path(package_share) / 'config' / 'mvp1_pick_and_place.yaml'
 
-        success, error_code, message = self._call_reset_scene(task_id)
-        if not success:
-            self._publish_task_state(
+        with config_path.open('r', encoding='utf-8') as config_file:
+            return yaml.safe_load(config_file)
+
+    def _run_task(self, task_id, task_name):
+        """按固定顺序执行最小任务链路。"""
+        # 分支1：mvp-0
+        if task_name == self.MVP0_HOME:
+            previous_state = 'IDLE'
+            previous_state = self._publish_task_state(
                 task_id,
-                'FAILED',
+                'RESETTING',
                 previous_state,
                 0.2,
-                error_code,
-                message,
+                0,
+                'Resetting scene',
             )
-            return
 
+            success, error_code, message = self._call_reset_scene(task_id)
+            if not success:
+                self._publish_task_state(
+                    task_id,
+                    'FAILED',
+                    previous_state,
+                    0.2,
+                    error_code,
+                    message,
+                )
+                return
+
+            previous_state = self._publish_task_state(
+                task_id,
+                'ARM_HOME',
+                previous_state,
+                0.6,
+                0,
+                'Moving right_arm to home',
+            )
+
+            success, error_code, message = self._call_move_arm_target(
+                self.TARGET_NAME
+            )
+            if not success:
+                self._publish_task_state(
+                    task_id,
+                    'FAILED',
+                    previous_state,
+                    0.6,
+                    error_code,
+                    message,
+                )
+                return
+
+            self._publish_task_state(
+                task_id,
+                'SUCCESS',
+                previous_state,
+                1.0,
+                0,
+                'Task completed successfully',
+            )
+
+        # 分支2：mvp-1
+        if task_name == self._mvp1_task_name:
+            previous_state = 'IDLE'
+
+            pick_and_place_steps = [
+                (
+                    'RESETTING',
+                    0.06,
+                    'Resetting scene',
+                    lambda: self._call_reset_scene(task_id),
+                ),
+                (
+                    'ARM_HOME',
+                    0.12,
+                    'Moving right_arm to home',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['home'],
+                    ),
+                ),
+                (
+                    'HAND_OPEN',
+                    0.18,
+                    'Opening right_hand',
+                    lambda: self._call_control_hand(
+                        self._hand_commands['open'],
+                    ),
+                ),
+                (
+                    'ARM_PREGRASP',
+                    0.24,
+                    'Moving right_arm to pregrasp',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['pregrasp'],
+                    ),
+                ),
+                (
+                    'HAND_PRESHAPE',
+                    0.30,
+                    'Preshaping right_hand',
+                    lambda: self._call_control_hand(
+                        self._hand_commands['preshape'],
+                    ),
+                ),
+                (
+                    'ARM_GRASP',
+                    0.36,
+                    'Moving right_arm to grasp',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['grasp'],
+                    ),
+                ),
+                (
+                    'HAND_CLOSE',
+                    0.42,
+                    'Closing right_hand',
+                    lambda: self._call_control_hand(
+                        self._hand_commands['close'],
+                    ),
+                ),
+                (
+                    'ATTACH_OBJECT',
+                    0.48,
+                    f'Attaching {self._task_config["object_id"]} '
+                    f'to {self._task_config["hand_name"]}',
+                    lambda: self._call_attach_object(task_id),
+                ),
+                (
+                    'ARM_LIFT',
+                    0.54,
+                    'Moving right_arm to lift',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['lift'],
+                    ),
+                ),
+                (
+                    'ARM_PREPLACE',
+                    0.60,
+                    'Moving right_arm to preplace',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['preplace'],
+                    ),
+                ),
+                (
+                    'ARM_PLACE',
+                    0.66,
+                    'Moving right_arm to place',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['place'],
+                    ),
+                ),
+                (
+                    'TERMINAL_PLACE',
+                    0.72,
+                    'Executing terminal PLACE operation',
+                    lambda: self._call_terminal_place(task_id),
+                ),
+                (
+                    'DETACH_OBJECT',
+                    0.78,
+                    f'Detaching {self._task_config["object_id"]} '
+                    f'to {self._task_config["target_location"]}',
+                    lambda: self._call_detach_object(task_id),
+                ),
+                (
+                    'HAND_OPEN',
+                    0.84,
+                    'Opening right_hand',
+                    lambda: self._call_control_hand(
+                        self._hand_commands['open'],
+                    ),
+                ),
+                (
+                    'ARM_RETREAT',
+                    0.90,
+                    'Moving right_arm to retreat',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['retreat'],
+                    ),
+                ),
+                (
+                    'ARM_HOME',
+                    0.96,
+                    'Moving right_arm to home',
+                    lambda: self._call_move_arm_target(
+                        self._arm_targets['home'],
+                    ),
+                ),
+            ]
+
+            for current_state, progress, message, step_call in pick_and_place_steps:
+                success, previous_state = self._run_step(
+                    task_id,
+                    previous_state,
+                    current_state,
+                    progress,
+                    message,
+                    step_call,
+                )
+                if not success:
+                    return
+
+            self._publish_task_state(
+                task_id,
+                'SUCCESS',
+                previous_state,
+                1.0,
+                0,
+                'Task completed successfully',
+            )
+
+    def _run_step(
+        self,
+        task_id,
+        previous_state,
+        current_state,
+        progress,
+        message,
+        step_call,
+    ):
+        """发布一个状态，执行对应动作；失败时统一进入 FAILED。"""
         previous_state = self._publish_task_state(
             task_id,
-            'ARM_HOME',
+            current_state,
             previous_state,
-            0.6,
+            progress,
             0,
-            'Moving right_arm to home',
+            message,
         )
 
-        success, error_code, message = self._call_move_arm_home()
+        success, error_code, result_message = step_call()
         if not success:
             self._publish_task_state(
                 task_id,
                 'FAILED',
                 previous_state,
-                0.6,
+                progress,
                 error_code,
-                message,
+                result_message,
             )
-            return
+            return False, previous_state
 
-        self._publish_task_state(
-            task_id,
-            'SUCCESS',
-            previous_state,
-            1.0,
-            0,
-            'Task completed successfully',
-        )
+        return True, previous_state
 
     def _publish_task_state(
         self,
@@ -243,7 +497,10 @@ class AssemblyTaskNode(Node):
         # 已经发出请求了，异步等待
         future = self._reset_scene_client.call_async(request)
 
-        if not self._wait_for_future(future, timeout_sec=5.0):
+        if not self._wait_for_future(
+            future,
+            timeout_sec=self._timeouts['scene_operation_sec'],
+        ):
             return (
                 False,
                 self.RESET_SCENE_UNAVAILABLE_ERROR,
@@ -260,7 +517,7 @@ class AssemblyTaskNode(Node):
 
         return result.success, result.error_code, result.message
 
-    def _call_move_arm_home(self):
+    def _call_move_arm_target(self, target_name):
         """调用 Fake Arm Control 的 MoveArm Action。"""
         if not self._move_arm_action_client.wait_for_server(timeout_sec=2.0):
             return (
@@ -270,15 +527,18 @@ class AssemblyTaskNode(Node):
             )
 
         goal = MoveArm.Goal()
-        goal.arm_name = self.TARGET_ARM
-        goal.target_name = self.TARGET_NAME
-        goal.timeout_sec = self.MOVE_ARM_TIMEOUT_SEC
+        goal.arm_name = self._task_config['arm_name']
+        goal.target_name = target_name
+        goal.timeout_sec = self._timeouts['move_arm_sec']
 
         send_goal_future = self._move_arm_action_client.send_goal_async(
             goal,
             feedback_callback=self._handle_move_arm_feedback,
         )
-        if not self._wait_for_future(send_goal_future, timeout_sec=5.0):
+        if not self._wait_for_future(
+            send_goal_future,
+            timeout_sec=self._timeouts['move_arm_sec'],
+        ):
             return (
                 False,
                 self.MOVE_ARM_UNAVAILABLE_ERROR,
@@ -294,7 +554,10 @@ class AssemblyTaskNode(Node):
             )
 
         result_future = goal_handle.get_result_async()
-        if not self._wait_for_future(result_future, timeout_sec=10.0):
+        if not self._wait_for_future(
+            result_future,
+            timeout_sec=self._timeouts['move_arm_sec'],
+        ):
             return (
                 False,
                 self.MOVE_ARM_UNAVAILABLE_ERROR,
@@ -310,6 +573,155 @@ class AssemblyTaskNode(Node):
             )
 
         result = action_result.result
+        return result.success, result.error_code, result.message
+
+    def _call_control_hand(self, command):
+        """调用 Fake Hand Control 的 ControlHand 服务。"""
+        if not self._control_hand_client.wait_for_service(timeout_sec=2.0):
+            return (
+                False,
+                self.CONTROL_HAND_UNAVAILABLE_ERROR,
+                'control_hand service not available',
+            )
+
+        request = ControlHand.Request()
+        request.hand_name = self._task_config['hand_name']
+        request.command = command
+        request.grasp_name = self._grasp_config['name']
+        request.timeout_sec = self._timeouts['control_hand_sec']
+
+        future = self._control_hand_client.call_async(request)
+
+        if not self._wait_for_future(
+            future,
+            timeout_sec=self._timeouts['control_hand_sec'],
+        ):
+            return (
+                False,
+                self.CONTROL_HAND_UNAVAILABLE_ERROR,
+                'control_hand service call timed out',
+            )
+
+        result = future.result()
+        if result is None:
+            return (
+                False,
+                self.CONTROL_HAND_UNAVAILABLE_ERROR,
+                'control_hand service returned no response',
+            )
+
+        return result.success, result.error_code, result.message
+
+    def _call_attach_object(self, task_id):
+        """调用 Fake Scene Manager 的 AttachObject 服务。"""
+        if not self._attach_object_client.wait_for_service(timeout_sec=2.0):
+            return (
+                False,
+                self.SCENE_OBJECT_UNAVAILABLE_ERROR,
+                'attach_object service not available',
+            )
+
+        request = AttachObject.Request()
+        request.task_id = task_id
+        request.object_id = self._task_config['object_id']
+        request.link_name = self._task_config['hand_name']
+
+        future = self._attach_object_client.call_async(request)
+
+        if not self._wait_for_future(
+            future,
+            timeout_sec=self._timeouts['scene_operation_sec'],
+        ):
+            return (
+                False,
+                self.SCENE_OBJECT_UNAVAILABLE_ERROR,
+                'attach_object service call timed out',
+            )
+
+        result = future.result()
+        if result is None:
+            return (
+                False,
+                self.SCENE_OBJECT_UNAVAILABLE_ERROR,
+                'attach_object service returned no response',
+            )
+
+        return result.success, result.error_code, result.message
+
+    def _call_detach_object(self, task_id):
+        """调用 Fake Scene Manager 的 DetachObject 服务。"""
+        if not self._detach_object_client.wait_for_service(timeout_sec=2.0):
+            return (
+                False,
+                self.SCENE_OBJECT_UNAVAILABLE_ERROR,
+                'detach_object service not available',
+            )
+
+        request = DetachObject.Request()
+        request.task_id = task_id
+        request.object_id = self._task_config['object_id']
+        request.target_location = self._task_config['target_location']
+
+        future = self._detach_object_client.call_async(request)
+
+        if not self._wait_for_future(
+            future,
+            timeout_sec=self._timeouts['scene_operation_sec'],
+        ):
+            return (
+                False,
+                self.SCENE_OBJECT_UNAVAILABLE_ERROR,
+                'detach_object service call timed out',
+            )
+
+        result = future.result()
+        if result is None:
+            return (
+                False,
+                self.SCENE_OBJECT_UNAVAILABLE_ERROR,
+                'detach_object service returned no response',
+            )
+
+        return result.success, result.error_code, result.message
+
+    def _call_terminal_place(self, task_id):
+        """调用 Fake Terminal Operation 的 PLACE 服务。"""
+        if not self._execute_terminal_operation_client.wait_for_service(
+            timeout_sec=2.0,
+        ):
+            return (
+                False,
+                self.TERMINAL_OPERATION_UNAVAILABLE_ERROR,
+                'execute_terminal_operation service not available',
+            )
+
+        request = ExecuteTerminalOperation.Request()
+        request.task_id = task_id
+        request.operation_type = self._task_config['terminal_operation']
+        request.object_id = self._task_config['object_id']
+        request.target_location = self._task_config['target_location']
+        request.timeout_sec = self._timeouts['terminal_operation_sec']
+
+        future = self._execute_terminal_operation_client.call_async(request)
+
+        if not self._wait_for_future(
+            future,
+            timeout_sec=self._timeouts['terminal_operation_sec'],
+        ):
+            return (
+                False,
+                self.TERMINAL_OPERATION_UNAVAILABLE_ERROR,
+                'execute_terminal_operation service call timed out',
+            )
+
+        result = future.result()
+        if result is None:
+            return (
+                False,
+                self.TERMINAL_OPERATION_UNAVAILABLE_ERROR,
+                'execute_terminal_operation service returned no response',
+            )
+
         return result.success, result.error_code, result.message
 
     def _handle_move_arm_feedback(self, feedback_msg):
