@@ -44,6 +44,7 @@ class AssemblyTaskNode(Node):
     # error code
     EMPTY_TASK_NAME_ERROR = 3001
     UNSUPPORTED_TASK_NAME_ERROR = 3002
+    TASK_ALREADY_RUNNING_ERROR = 3003
     RESET_SCENE_UNAVAILABLE_ERROR = 3101
     MOVE_ARM_UNAVAILABLE_ERROR = 3201
     CONTROL_HAND_UNAVAILABLE_ERROR = 7001
@@ -63,6 +64,7 @@ class AssemblyTaskNode(Node):
         self._state_lock = threading.Lock()  # 状态互斥锁
         self._current_state = 'IDLE'  # 空闲
         self._previous_state = ''
+        self._active_task_id = None
 
         # 读取 config 配置的 yaml
         self._mvp1_config = self._load_mvp1_config()
@@ -170,7 +172,18 @@ class AssemblyTaskNode(Node):
             response.message = 'unsupported task_name'
             return response
 
-        task_id = self._generate_task_id()
+        with self._state_lock:
+            if self._active_task_id is not None:
+                response.accepted = False
+                response.task_id = ''
+                response.error_code = self.TASK_ALREADY_RUNNING_ERROR
+                response.message = 'another task is already running'
+                return response
+
+            self._task_counter += 1
+            task_id = f'mvp0_task_{self._task_counter:04d}'
+            self._active_task_id = task_id
+
         response.accepted = True
         response.task_id = task_id
         response.error_code = 0
@@ -178,7 +191,7 @@ class AssemblyTaskNode(Node):
 
         # 创建一个后台线程，并让任务在后台执行。
         task_thread = threading.Thread(
-            target=self._run_task,
+            target=self._run_task_safely,
             args=(task_id, task_name),
             daemon=True,  # 表示这是一个守护线程。主程序退出时，这个后台线程不会阻止程序退出。
         )
@@ -192,12 +205,14 @@ class AssemblyTaskNode(Node):
         )
         return response
 
-    def _generate_task_id(self):
-        """生成 MVP-0 阶段使用的简单递增任务编号。"""
-        with self._state_lock:
-            # 进入下面这段代码之前，先把锁拿到；代码执行完后，自动释放锁。
-            self._task_counter += 1
-            return f'mvp0_task_{self._task_counter:04d}'
+    def _run_task_safely(self, task_id, task_name):
+        """执行任务，并在结束后释放并发保护。"""
+        try:
+            self._run_task(task_id, task_name)
+        finally:
+            with self._state_lock:
+                if self._active_task_id == task_id:
+                    self._active_task_id = None
 
     def _load_mvp1_config(self):
         """从安装后的 share 目录读取 MVP-1 Pick-and-Place 配置。"""

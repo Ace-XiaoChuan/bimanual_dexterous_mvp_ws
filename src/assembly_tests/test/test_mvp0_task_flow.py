@@ -1,6 +1,7 @@
 """MVP-0 integration acceptance tests."""
 
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -69,6 +70,7 @@ class TestMvp0TaskFlow(unittest.TestCase):
             stderr=subprocess.STDOUT,
             text=True,
             env=env,
+            start_new_session=True,
         )
 
         # 持续读取 launch 输出，失败时可把尾部日志放进断言消息。
@@ -83,12 +85,12 @@ class TestMvp0TaskFlow(unittest.TestCase):
         """停止 ros2 launch 子进程，并清理测试创建的类级资源。"""
         process = getattr(cls, 'launch_process', None)
         if process is not None and process.poll() is None:
-            process.terminate()
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             try:
                 process.wait(timeout=10.0)
             except subprocess.TimeoutExpired:
                 # terminate 后仍不退出时，用 kill 兜底。
-                process.kill()
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                 process.wait(timeout=5.0)
 
         output_thread = getattr(cls, 'launch_output_thread', None)

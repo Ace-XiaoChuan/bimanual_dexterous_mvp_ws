@@ -22,6 +22,13 @@ if(BUILD_TESTING)
     ENV
       "ROS_LOG_DIR=${CMAKE_BINARY_DIR}/ros_logs"
   )
+  ament_add_pytest_test(
+    mvp1_pick_and_place_flow
+    test/test_mvp1_pick_and_place_flow.py
+    TIMEOUT 300
+    ENV
+      "ROS_LOG_DIR=${CMAKE_BINARY_DIR}/ros_logs"
+  )
 
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights

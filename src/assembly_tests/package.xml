@@ -3,7 +3,7 @@
 <package format="3">
   <name>assembly_tests</name>
   <version>0.0.0</version>
-  <description>Integration tests for the MVP-0 fake assembly system</description>
+  <description>Integration tests for the fake assembly MVP systems</description>
   <maintainer email="3526623168@qq.com">ace</maintainer>
   <license>Apache-2.0</license>
 
@@ -17,7 +17,9 @@
   <test_depend>assembly_interfaces</test_depend>
   <test_depend>assembly_task</test_depend>
   <test_depend>fake_arm_control</test_depend>
+  <test_depend>fake_hand_control</test_depend>
   <test_depend>fake_scene_manager</test_depend>
+  <test_depend>fake_terminal_operation</test_depend>
   <test_depend>launch_ros</test_depend>
   <test_depend>python3-pytest</test_depend>
   <test_depend>rclpy</test_depend>
