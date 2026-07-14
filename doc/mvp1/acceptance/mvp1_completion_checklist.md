@@ -6,7 +6,7 @@
 
 MVP-1 的冻结目标是一条纯软件 fake 单臂 Pick-and-Place 闭环。它验证任务
 编排、接口调用、状态发布、错误处理、逻辑物体附着/释放和自动化集成测试，
-不声明真实 FR3、真实 RH56DFX-2R、MoveIt、MuJoCo 或 Peg-in-Hole 能力。
+不声明真实 FR3、真实 RH56DFX-2R、MoveIt、MuJoCo 或航空插头插接能力。
 
 ## 完成项
 

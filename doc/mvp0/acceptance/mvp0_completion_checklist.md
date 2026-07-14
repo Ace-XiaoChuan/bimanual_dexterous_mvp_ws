@@ -23,7 +23,7 @@ StartTask service
 ```
 
 MVP-0 不包含真实硬件驱动、MoveIt 规划、MuJoCo 仿真、双臂协同、灵巧手全
-关节控制、Pick-and-Place 或 Peg-in-Hole。
+关节控制、Pick-and-Place 或航空插头插接。
 
 ## 阶段状态
 

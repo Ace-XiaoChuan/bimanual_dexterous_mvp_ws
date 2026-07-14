@@ -19,7 +19,7 @@ package、service、action、topic、launch 和集成测试形成一个可重复
 3. 不加载真实硬件驱动、控制器或安全限制。
 4. 不使用 MoveIt、MTC、ros2_control 或 MuJoCo。
 5. 不执行真实 Pick-and-Place。
-6. 不执行 Peg-in-Hole、接触建模、柔顺控制或力反馈。
+6. 不执行航空插头插接、接触建模、柔顺控制或力反馈。
 7. `right_arm` 仅是逻辑名，当前由 fake action server 处理。
 8. `right_hand` 仅做命名和硬件基线预留，MVP-0 不控制灵巧手。
 9. 当前只支持一个任务名：`mvp0_home`。

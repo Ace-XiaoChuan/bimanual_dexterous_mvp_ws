@@ -201,7 +201,7 @@ object_id: mvp_object
 target_location: place_zone
 ```
 
-`PLACE` 是 Pick-and-Place 的末端操作占位，不代表插入、拧紧或真实装配。
+`PLACE` 是 Pick-and-Place 的末端操作占位，不代表航空插头插接、拧紧或真实装配。
 
 ## Launch
 

@@ -5,7 +5,7 @@
 实现 `fake_terminal_operation_node`，为 MVP-1 提供 PLACE 末端操作占位能力。
 
 这里的 terminal operation 表示“任务语义上的放置动作已经执行”，不等同于
-真实接触、对孔或插入。
+真实接触、插头/插座对准或航空插头插接。
 
 ## 2. 本阶段范围
 
@@ -63,7 +63,7 @@ detach object
 object_location = place_zone
 ```
 
-两者不要混成一个模块。这样后续从 PLACE 过渡到 INSERT 时，只需要替换或扩展
+两者不要混成一个模块。这样后续从 PLACE 过渡到 CONNECTOR_INSERT 时，只需要替换或扩展
 terminal operation，而不必重写场景状态管理。
 
 ## 5. 错误处理
@@ -114,11 +114,11 @@ object_id / target_location / timeout_sec 非法时返回明确错误码
 本阶段不实现：
 
 ```text
-INSERT
-孔轴对准
+CONNECTOR_INSERT
+插头/插座对准
 接触检测
 力反馈
 柔顺控制
-插入搜索
+插接搜索
 自动失败恢复
 ```
