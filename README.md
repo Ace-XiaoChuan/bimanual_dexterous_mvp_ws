@@ -188,6 +188,33 @@ ros2 service call \
 一次合法 MVP-1 任务应发布完整 Pick-and-Place 状态序列，并在结束时返回
 `SUCCESS`。详细状态序列、接口语义和已知限制见 `doc/mvp1/acceptance/`。
 
+## MVP-2 官方 FR3 / MoveIt 依赖
+
+MVP-2 使用 Franka 官方 ROS 2 包中的 `franka_description` 和
+`franka_fr3_moveit_config` 作为 FR3 模型与 MoveIt 配置来源。本仓库不手工
+复制官方 MoveIt 配置；官方源码通过 `dependencies/franka_ros2_humble.repos`
+恢复到 `src/third_party/franka_ros2/`。
+
+```bash
+cd /home/ace/bimanual_dexterous_mvp_ws
+source /opt/ros/humble/setup.bash
+vcs import src < dependencies/franka_ros2_humble.repos
+rosdep install --from-paths src --ignore-src -r -y --rosdistro humble
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch franka_fr3_moveit_config moveit.launch.py \
+  robot_ip:=dont-care \
+  use_fake_hardware:=true
+```
+
+任务 02 只验证官方 FR3 MoveIt demo、`fr3_arm` planning group、官方
+`ready` 目标规划和 fake/dummy hardware 执行；MVP 逻辑目标 `home` 到
+MoveIt named target 或 pose target 的映射从任务 03 开始。
+
+如果官方 `franka_hardware` 构建时报缺少 `FrankaConfig.cmake`，先安装
+`ros-humble-libfranka`。该依赖来自 Franka 官方硬件接口，即使使用
+`use_fake_hardware:=true`，官方 launch 依赖链也会经过这些包。
+
 ## MVP-0 验收与冻结记录
 
 MVP-0 已冻结为一条纯软件 fake 最小纵向链路。完整验收记录不再展开在

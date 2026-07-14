@@ -6,3 +6,7 @@ __pycache__/
 .pytest_cache/
 .vscode/
 .idea/
+
+# Upstream ROS 2 packages are restored from dependencies/*.repos.
+src/third_party/franka_description/
+src/third_party/franka_ros2/
