@@ -1,0 +1,43 @@
+# MVP-2 FR3 MoveIt Pick-and-Place 配置冻结。
+# 本文件只冻结任务层需要读取的 MoveIt 接入参数，不表示已经实现真实规划、
+# 真实抓取、真实航空插头插接或真机控制。
+
+# StartTask 请求中用于选择 MVP-2 状态机的任务名。
+task_name: pick_and_place_mvp
+
+# 逻辑机械臂名称，对应当前单臂链路中的右臂。
+arm_name: right_arm
+
+# MoveIt 规划组名称，对应 FR3 单臂规划组。
+planning_group: fr3_arm
+
+# 场景中被抓取和放置的逻辑物体 ID。
+object_id: mvp_object
+
+# 物体重置后的逻辑起点位置。
+source_location: pickup_zone
+
+# DetachObject 和 PLACE 末端操作使用的逻辑目标位置。
+target_location: place_zone
+
+# MVP-2 仍只做放置占位；航空插头插接后续用 CONNECTOR_INSERT 扩展。
+terminal_operation: PLACE
+
+# MoveIt / SRDF 中应提供的命名目标。
+moveit_named_targets:
+  home: home
+  pregrasp: pregrasp
+  grasp: grasp
+  lift: lift
+  preplace: preplace
+  place: place
+  retreat: retreat
+
+# MoveIt 规划等待时间，单位秒。
+planning_timeout_sec: 10.0
+
+# MoveIt 执行等待时间，单位秒。
+execution_timeout_sec: 30.0
+
+# 场景操作等待时间，单位秒。
+scene_operation_sec: 2.0

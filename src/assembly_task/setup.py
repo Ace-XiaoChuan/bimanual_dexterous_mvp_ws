@@ -11,7 +11,10 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/config',
-            ['config/mvp1_pick_and_place.yaml']),
+            [
+                'config/mvp1_pick_and_place.yaml',
+                'config/mvp2_moveit_pick_and_place.yaml',
+            ]),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
